@@ -1,0 +1,49 @@
+version: "3.8"
+
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: kmata_sql_db
+    environment:
+      SA_PASSWORD: "Km@ta123"
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+    ports:
+      - "1433:1433"
+    volumes:
+      - kmata_dbdata:/var/opt/mssql
+
+  vulnerable-app:
+    build:
+      context: ./v1-vulnerable
+      dockerfile: Dockerfile
+    container_name: kmata_v1
+    depends_on:
+      - db
+    environment:
+      - PORT=3000
+      - DB_USER=kmata
+      - DB_PASSWORD=Km@ta123
+      - DB_DATABASE=kmata_lab_db
+      - DB_SERVER=db
+    ports:
+      - "3000:3000"
+
+  secure-app:
+    build:
+      context: ./v2-secure
+      dockerfile: Dockerfile
+    container_name: kmata_v2
+    depends_on:
+      - db
+    environment:
+      - PORT=4000
+      - DB_USER=kmata
+      - DB_PASSWORD=Km@ta123
+      - DB_DATABASE=kmata_lab_db
+      - DB_SERVER=db
+    ports:
+      - "4000:4000"
+
+volumes:
+  kmata_dbdata:
