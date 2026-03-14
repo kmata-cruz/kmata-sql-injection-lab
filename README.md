@@ -1,255 +1,130 @@
-# KMATA – SQL Injection Lab
+# 🛠️ KMATA – SQL Injection Lab (Premium Edition)
 
-## 1. Descripción General
-
-Este laboratorio académico demuestra:
-
-1. Desarrollo de una aplicación web vulnerable a SQL Injection.
-2. Desarrollo de una versión 2.0 segura mediante consultas parametrizadas.
-3. Contenerización utilizando Docker Compose.
-4. Explotación de la versión vulnerable con sqlmap.
-5. Validación técnica de la mitigación implementada.
-
-Ambas aplicaciones utilizan:
-
-* Node.js / Express
-* Microsoft SQL Server
-* Docker y Docker Compose
+Este laboratorio académico es una plataforma interactiva diseñada para demostrar, explotar y mitigar vulnerabilidades de **SQL Injection** utilizando tecnologías modernas de nivel empresarial.
 
 ---
 
-# PARTE I — Aplicación Vulnerable
+## 🚀 1. Características Principales
 
-## 2. Arquitectura
+Este lab no es solo un script; es un ecosistema completo que incluye:
 
-Usuario → Aplicación Web → SQL Server
-
-La versión vulnerable construye consultas SQL concatenando directamente los parámetros enviados por el usuario.
-
-Ejemplo conceptual inseguro:
-
-
-const query = "SELECT * FROM users WHERE username = '" + username +
-"' AND password = '" + password + "'";
-
-
-Esta práctica permite la inyección de código SQL.
+*   **⚡ Doble Aplicación**: Una versión vulnerable (v1) y una versión asegurada (v2) corriendo simultáneamente.
+*   **💾 Base de Datos SQL Server**: Contenedor oficial de Microsoft SQL Server 2022.
+*   **🏎️ Performance con Redis**: Cache de sesiones y resultados en la versión segura para demostrar optimización.
+*   **📊 Logging Estructurado**: Implementación de **Winston** para logs profesionales en formato JSON.
+*   **🏥 Health Checks**: Sistema de monitoreo de salud que asegura que los servicios solo arranquen cuando sus dependencias (DB, Cache) estén listas.
+*   **🔄 Auto-Initialization**: Script de base de datos automático mediante `db-init`.
 
 ---
 
-## 3. Inicialización de la Base de Datos
+## 🏗️ 2. Arquitectura del Sistema
 
-El archivo `init.sql` contiene:
+```mermaid
+graph TD
+    User((Usuario))
+    V1[App Vulnerable :3000]
+    V2[App Segura :4000]
+    DB[(SQL Server :1433)]
+    Cache[(Redis :6379)]
+    Init[DB Initializer]
 
-* Creación de la base de datos `kmata_lab_db`
-* Creación de login `kmata`
-* Creación de usuario
-* Asignación de permisos
-* Creación de la tabla `users`
-* Inserción de datos de prueba
+    User --> V1
+    User --> V2
+    V1 --> DB
+    V2 --> DB
+    V2 --> Cache
+    Init -.-> DB
+```
 
-Usuarios disponibles:
+---
 
-| username | password  |
-|----------|-----------|
-| admin    | admin123  |
-| user1    | 1234      |
-| paola    | password  |
+## 🛠️ 3. Requisitos Previos
 
-Para reinicializar completamente la base:
+*   [Docker Desktop](https://www.docker.com/products/docker-desktop/) (con soporte para Compose)
+*   Powershell (recomendado en Windows 11)
 
+---
 
+## 🏁 4. Cómo Levantar el Laboratorio
+
+Desde la raíz del proyecto, ejecuta el siguiente comando:
+
+```powershell
+docker compose up -d --build
+```
+
+### ¿Qué sucede durante el despliegue?
+1.  **SQL Server** se inicia y configura su entorno.
+2.  **Redis** se levanta para servir como capa de cache.
+3.  **db-init** espera a que SQL Server esté saludable y ejecuta `kmata_lab.sql`.
+4.  **Apps (v1 & v2)** se inician solo después de que la DB y el Cache responden correctamente.
+
+---
+
+## 🔓 5. Fase I: Explotación (v1-vulnerable)
+
+**URL**: [http://localhost:3000](http://localhost:3000)
+
+### Escenario de Ataque Manual
+1.  Haz clic en el botón **💡 Ayuda**.
+2.  Prueba el login legítimo: `admin` / `admin123`.
+3.  Intenta el **Bypass de Autenticación**:
+    *   **Usuario**: `' OR 1=1 --`
+    *   **Password**: (cualquier cosa)
+    *   **Resultado**: ¡Acceso concedido sin conocer la contraseña!
+
+### Explotación Automatizada con sqlmap
+Si tienes `sqlmap` instalado, puedes extraer la base de datos completa:
+
+```bash
+python sqlmap.py -u "http://localhost:3000/auth/login" --data="username=admin&password=123" --method=POST -p username --dump --batch
+```
+
+---
+
+## 🛡️ 6. Fase II: Seguridad (v2-secure)
+
+**URL**: [http://localhost:4000](http://localhost:4000)
+
+### Mejoras de Seguridad Implementadas
+*   **Consultas Parametrizadas**: Uso de `@username` y `@password` para separar datos de la lógica SQL.
+*   **Sanitización de Entrada**: Validación de longitud y tipos de datos.
+*   **Manejo Seguro de Errores**: No se filtran detalles técnicos al cliente.
+
+### Características Premium
+*   **Cache de Cache**: Resultados exitosos se guardan en **Redis** por 60s. Verás el mensaje `(cached)` en respuestas rápidas.
+*   **Logs JSON**: Los intentos de login se registran con Winston. Puedes verlos con:
+    ```powershell
+    docker logs kmata_v2
+    ```
+
+---
+
+## 🧪 7. Comparación Técnica
+
+| Característica | Versión Vulnerable | Versión 2.0 Segura |
+| :--- | :--- | :--- |
+| **Construcción SQL** | Concatenación Directa | **Parametrización (SQL Prep)** |
+| **Protección SQLi** | ❌ No | ✅ Sí (Completa) |
+| **Performance** | ❌ Directo a DB | ✅ **Redis Cache Layer** |
+| **Observabilidad** | Console.log básico | ✅ **Winston JSON Logging** |
+| **Disponibilidad** | Arranque simple | ✅ **Docker Healthchecks** |
+
+---
+
+## 🧹 8. Limpieza y Reinicio
+
+Si deseas borrar todo rastro (incluyendo datos de la base de datos) para empezar de cero:
+
+```powershell
 docker compose down -v
-
-
-El parámetro `-v` elimina los volúmenes y fuerza la recreación de la base de datos.
+```
 
 ---
 
-## 4. Cómo levantar el laboratorio
-
-Desde la raíz del proyecto:
-
-
-docker compose up --build
-
-
-Esto realiza:
-
-1. Levantamiento de SQL Server.
-2. Ejecución automática del script `init.sql`.
-3. Inicio de la aplicación vulnerable.
-4. Inicio de la aplicación segura.
-
-La aplicación vulnerable queda disponible en:
-
-
-http://localhost:3000
-
-
-La aplicación segura queda disponible en:
-
-
-http://localhost:4000
-
+## ✍️ Autores
+*   **kmata** - Desarrollo Original
+*   **Antigravity AI** - Optimizaciones Premium y Seguridad
 
 ---
-
-## 5. Pruebas Manuales — Versión Vulnerable
-
-### Login válido
-
-
-http://localhost:3000/auth/login
-
-
-Credenciales:
-
-
-username=admin
-password=admin123
-
-
-Resultado esperado: acceso exitoso.
-
-### SQL Injection manual
-
-Ingresar como username:
-
-
-' OR 1=1 --
-
-
-Password: cualquier valor.
-
-Resultado esperado: bypass del login.
-
----
-
-## 6. Explotación con sqlmap — Versión Vulnerable
-
-Ejemplo:
-
-
-python sqlmap.py -u "http://localhost:3000/auth/login
-"
---data="username=admin&password=123"
---method=POST -p username --dump --batch
-
-
-Posibles comandos adicionales:
-
-Obtener bases de datos:
-
-
-sqlmap -u "URL_OBJETIVO" --dbs
-
-
-Obtener tablas:
-
-
-sqlmap -u "URL_OBJETIVO" -D kmata_lab_db --tables
-
-
-Dump completo:
-
-
-sqlmap -u "URL_OBJETIVO" --dump
-
-
-Resultado esperado: extracción completa de la tabla `users`.
-
----
-
-# PARTE II — Versión 2.0 Aplicación Segura
-
-## 7. Mejoras Implementadas
-
-La versión segura corrige la vulnerabilidad mediante:
-
-1. Uso de consultas parametrizadas.
-2. Separación entre datos y código SQL.
-3. Tipado explícito de parámetros.
-4. Validación de entrada.
-
-Ejemplo conceptual seguro:
-
-
-request.input('username', sql.VarChar(50), username)
-request.input('password', sql.VarChar(50), password)
-
-SELECT * FROM users WHERE username = @username AND password = @password
-
-
----
-
-## 8. Pruebas — Versión Segura
-
-### Login válido
-
-
-http://localhost:4000/auth/login
-
-
-Credenciales:
-
-
-username=admin
-password=admin123
-
-
-Resultado esperado: acceso exitoso.
-
-### Intento de SQL Injection
-
-
-username=' OR 1=1 --
-password=anything
-
-
-Resultado esperado:
-
-* El login falla.
-* No se produce bypass.
-* sqlmap no detecta parámetros inyectables.
-
----
-
-## 9. Prueba con sqlmap — Versión Segura
-
-
-python sqlmap.py -u "http://localhost:4000/auth/login
-"
---data="username=admin&password=123"
---method=POST -p username --dump --batch
-
-
-Resultado esperado:
-
-
-[CRITICAL] all tested parameters do not appear to be injectable
-
-
----
-
-# 10. Comparación Técnica
-
-| Característica        | Vulnerable            | Versión 2.0   |
-|----------------------|-----------------------|---------------|
-| Construcción SQL     | Concatenación directa | Parametrizada |
-| Validación de entrada| No                    | Sí            |
-| Vulnerable a SQLi    | Sí                    | No            |
-| Explotable con sqlmap| Sí                    | No            |
-
----
-
-# 11. Conclusiones
-
-Este laboratorio demuestra:
-
-* Cómo una mala práctica en la construcción de consultas SQL compromete completamente una base de datos.
-* Cómo herramientas automatizadas pueden explotar vulnerabilidades reales con facilidad.
-* Cómo la parametrización elimina una vulnerabilidad crítica.
-* Cómo Docker permite reproducibilidad del entorno.
-
-La comparación entre ambas versiones evidencia el impacto directo de aplicar buenas prácticas de desarrollo seguro.
+*Este laboratorio es estrictamente para fines educativos. No utilices estas técnicas en sistemas sin autorización.*

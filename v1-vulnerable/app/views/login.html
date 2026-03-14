@@ -70,10 +70,42 @@
             background-color: #1e3c72;
         }
 
-        .footer {
-            margin-top: 15px;
-            font-size: 12px;
-            color: #888;
+        .help-section {
+            margin-top: 20px;
+            text-align: left;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
+
+        .help-btn {
+            background: #f0f0f0;
+            color: #555;
+            font-size: 13px;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 10px;
+            display: inline-block;
+        }
+
+        .help-content {
+            display: none;
+            background: #fff9c4;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #5d4037;
+            margin-top: 10px;
+            border-left: 4px solid #fbc02d;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        code {
+            background: #eee;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -93,10 +125,33 @@
             <button type="submit">Ingresar</button>
         </form>
 
+        <div class="help-section">
+            <div class="help-btn" onclick="toggleHelp()">💡 Ayuda / Guía del Lab</div>
+            <div id="helpContent" class="help-content">
+                <strong>Bienvenido al Laboratorio (Versión Vulnerable)</strong>
+                <p>Esta aplicación es vulnerable a SQL Injection porque concatena la entrada directamente.</p>
+                <p><strong>Credenciales válidas:</strong><br>
+                User: <code>admin</code> / Pass: <code>admin123</code></p>
+                <p><strong>Reto Injection:</strong><br>
+                Usa <code>' OR 1=1 --</code> en el campo de usuario para entrar sin contraseña.</p>
+            </div>
+        </div>
+
         <div class="footer">
             Laboratorio SQL Injection - kmata
         </div>
     </div>
+
+    <script>
+        function toggleHelp() {
+            var content = document.getElementById("helpContent");
+            if (content.style.display === "block") {
+                content.style.display = "none";
+            } else {
+                content.style.display = "block";
+            }
+        }
+    </script>
 
 </body>
 </html>
