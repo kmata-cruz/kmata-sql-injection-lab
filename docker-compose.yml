@@ -12,6 +12,23 @@ services:
       - "1433:1433"
     volumes:
       - kmata_dbdata:/var/opt/mssql
+      - ./database:/docker-entrypoint-initdb.d # NOTE: MSSQL doesn't use this, but keeping it for reference or custom scripts
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Km@ta123' -Q 'SELECT 1' -C || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: kmata_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   vulnerable-app:
     build:
@@ -19,15 +36,22 @@ services:
       dockerfile: Dockerfile
     container_name: kmata_v1
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       - PORT=3000
       - DB_USER=kmata
       - DB_PASSWORD=Km@ta123
       - DB_DATABASE=kmata_lab_db
       - DB_SERVER=db
+      - REDIS_HOST=redis
     ports:
       - "3000:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   secure-app:
     build:
@@ -35,15 +59,34 @@ services:
       dockerfile: Dockerfile
     container_name: kmata_v2
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       - PORT=4000
       - DB_USER=kmata
       - DB_PASSWORD=Km@ta123
       - DB_DATABASE=kmata_lab_db
       - DB_SERVER=db
+      - REDIS_HOST=redis
     ports:
       - "4000:4000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  db-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: kmata_db_init
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./database:/scripts
+    entrypoint: /bin/bash -c "sleep 5 && /opt/mssql-tools18/bin/sqlcmd -S db -U sa -P 'Km@ta123' -i /scripts/kmata_lab.sql -C"
 
 volumes:
   kmata_dbdata:
